@@ -3,6 +3,9 @@ import { Link } from "react-router"
 const Aside = () => {
     return (
         <div className="w-64 h-[98%] flex flex-col bg-gray-100 border border-gray-200 rounded-md overflow-y-auto">
+            <h1 className="text-center text-blue-600 text-2xl font-bold">
+                HOTEL MANAGEMENT
+            </h1>
             <div className="flex-grow">
                 <nav className="space-y-2">
                     <a className="flex items-center px-4 py-2 text-gray-700 bg-blue-100 border-r-2 border-blue-600" href="#">
