@@ -1,10 +1,13 @@
 from django.db import models
-
-from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
+from django.core.mail import send_mail
+from django.conf import settings
+from datetime import timedelta
+from django.utils import timezone
+import random
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, phone_number, password=None, **extra_fields):
@@ -79,3 +82,69 @@ class CustomUser(AbstractUser):
             raise ValidationError({'email': 'This email is already in use.'})
         if CustomUser.objects.filter(phone_number=self.phone_number).exclude(pk=self.pk).exists():
             raise ValidationError({'phone_number': 'This phone number is already in use.'})
+        
+    def send_verification_email(self):
+        # Generate and send OTP
+        OTP.generate_otp(self)
+        
+    def verify_email(self, otp_code):
+        try:
+            otp = OTP.objects.get(
+                user=self,
+                code=otp_code,
+                is_used=False
+            )
+            
+            if otp.is_valid():
+                self.is_verified = True
+                self.save()
+                otp.is_used = True
+                otp.save()
+                return True
+            return False
+        except OTP.DoesNotExist:
+            return False
+    
+
+class OTP(models.Model):
+    user = models.ForeignKey('CustomUser', on_delete=models.CASCADE)
+    code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.user.email} - {self.code}"
+
+    def is_valid(self):
+        return not self.is_used and (timezone.now() - self.created_at) < timedelta(minutes=15)
+
+    @classmethod
+    def generate_otp(cls, user):
+        # Delete any existing OTPs for this user
+        cls.objects.filter(user=user).delete()
+        
+        # Generate 6-digit OTP
+        code = str(random.randint(100000, 999999))
+        
+        # Create and save OTP
+        otp = cls.objects.create(user=user, code=code)
+        
+        # Build email content
+        subject = 'Your Email Verification Code'
+        message = (
+            f"Hello {user.full_name},\n\n"
+            f"Your OTP code is: {code}\n\n"
+            "This code will expire in 15 minutes.\n\n"
+            "Thank you for choosing our platform."
+        )
+        
+        # Send email
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        
+        return otp
