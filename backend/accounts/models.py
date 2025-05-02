@@ -1,6 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager
-from django.core.validators import validate_email
+from django.utils.crypto import get_random_string
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from django.core.mail import send_mail
@@ -38,16 +38,11 @@ class CustomUserManager(BaseUserManager):
 
 
 class CustomUser(AbstractUser):
-    USER_TYPE_CHOICES = (
-        ('ADMIN', 'Hotel Owner/Admin'),
-        ('STAFF', 'Staff Member'),
-    )
-    
     username = None
     email = models.EmailField(_('email address'), unique=True)
     phone_number = models.CharField(_('phone number'), max_length=20, unique=True)
     full_name = models.CharField(_('full name'), max_length=255)
-    user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='STAFF')
+    staff_type = models.ForeignKey('hotel.StaffType', on_delete=models.SET_NULL, null=True, blank=True, related_name='staff_users')
     is_admin = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
     
@@ -104,6 +99,12 @@ class CustomUser(AbstractUser):
             return False
         except OTP.DoesNotExist:
             return False
+        
+    @property
+    def user_type(self):
+        if self.is_admin:
+            return 'ADMIN'
+        return 'STAFF'
     
 
 class OTP(models.Model):
@@ -148,3 +149,36 @@ class OTP(models.Model):
         )
         
         return otp
+
+# accounts/models.py
+from django.db import models
+from django.utils import timezone
+import secrets
+from datetime import timedelta
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey('CustomUser', on_delete=models.CASCADE)
+    token = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_used = models.BooleanField(default=False)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=255, blank=True)
+    
+    def is_valid(self):
+        return not self.is_used and (timezone.now() - self.created_at) < timedelta(hours=24)
+
+    @classmethod
+    def generate_token(cls, user, request=None):
+        # Delete any existing tokens for this user
+        cls.objects.filter(user=user).delete()
+        
+        # Generate secure token
+        token = get_random_string(length=6).upper()
+        
+        # Create and save token
+        return cls.objects.create(
+            user=user,
+            token=token,
+            ip_address=request.META.get('REMOTE_ADDR') if request else None,
+            user_agent=request.META.get('HTTP_USER_AGENT', '')[:255] if request else ''
+        )

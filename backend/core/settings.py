@@ -7,6 +7,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 pymysql.version_info = (1, 4, 6, "final", 0)
 pymysql.install_as_MySQLdb()
 
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=1), 
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),  
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    
+    'SLIDING_TOKEN_LIFETIME': timedelta(hours=1),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+}
+
 
 SECRET_KEY = 'django-insecure-o_w$jjr%%pc7b551(d^mxl8_)@0jvm8vgc9uitb%!b+#z95cdu'
 
@@ -30,6 +43,7 @@ INSTALLED_APPS = [
     
     # Install dependencies
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
     
     'accounts.apps.AccountsConfig',
     'hotel.apps.HotelConfig',
@@ -124,3 +138,4 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
 
+FRONTEND_URL = 'https://hotel-management-system.onrender.com'

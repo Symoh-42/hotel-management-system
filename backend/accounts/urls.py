@@ -6,5 +6,6 @@ urlpatterns = [
     path('verify-email/', VerifyEmailView.as_view(), name='verify-email'),
     path('resend-otp/', ResendOTPView.as_view(), name='resend-otp'),
     path('login/', LoginView.as_view(), name='login'),
-    path('change-password/', ChangePasswordView.as_view(), name='change-password'),
+    path('request-password-reset/', RequestPasswordResetView.as_view(), name='request-password-reset'),
+    path('reset-password/', PasswordResetConfirmView.as_view(), name='reset-password'),
 ]

@@ -38,7 +38,7 @@ class StaffType(BaseModel):
     staff_type_name = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     permissions = models.JSONField(default=list)
-    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, related_name='staff_types')
+    hotel = models.ForeignKey('hotel.Hotel', on_delete=models.CASCADE, related_name='staff_types')
     
     class Meta:
         unique_together = ('staff_type_name', 'hotel')
@@ -48,11 +48,11 @@ class StaffType(BaseModel):
 
 class StaffProfile(BaseModel):
     user = models.OneToOneField('accounts.CustomUser', on_delete=models.CASCADE, related_name='staff_profile')
-    staff_type = models.ForeignKey('StaffType', on_delete=models.PROTECT)
     department = models.ForeignKey('Department', on_delete=models.SET_NULL, null=True, blank=True)
     salary = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     hire_date = models.DateField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
     
     def __str__(self):
-        return f"{self.user.get_full_name()} - {self.staff_type.staff_type_name} at {self.user.hotel.hotel_name if hasattr(self.user, 'hotel') else 'No Hotel'}"
+        staff_type = self.user.staff_type.staff_type_name if self.user.staff_type else 'No Type'
+        return f"{self.user.full_name} - {staff_type} at {self.user.hotel.hotel_name if hasattr(self.user, 'hotel') else 'No Hotel'}"

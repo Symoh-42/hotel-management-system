@@ -3,8 +3,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-
-from .models import CustomUser
+from django.core.mail import send_mail
+from django.conf import settings
+from .models import *
 from .serializers import *
 
 class RegisterView(APIView):
@@ -81,26 +82,85 @@ class LoginView(APIView):
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
         
-
-class ChangePasswordView(APIView):
-    permission_classes = [IsAuthenticated]
-
+class RequestPasswordResetView(APIView):
     def post(self, request):
-        serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
+        serializer = RequestPasswordResetSerializer(data=request.data)
         if serializer.is_valid():
-            user = request.user
-            user.set_password(serializer.validated_data['new_password'])
-            user.save()
+            email = serializer.validated_data['email']
+            user = CustomUser.objects.get(email=email)
             
-            # Invalidate all existing tokens
-            user.auth_token_set.all().delete()
+            # Generate and save token
+            reset_token = PasswordResetToken.generate_token(user)
+            
+            # Send email with reset link
+            reset_link = f"{settings.FRONTEND_URL}/reset-password?token={reset_token.token}"
+            
+            send_mail(
+                subject='Password Reset Request',
+                message=f"""
+                Hello {user.full_name},
+                
+                You requested a password reset for your account.
+                Please click the following link to reset your password:
+                
+                {reset_link}
+                
+                This link will expire in 24 hours.
+                
+                If you didn't request this, please ignore this email.
+                """,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
             
             return Response({
                 'success': True,
-                'message': 'Password updated successfully'
+                'message': 'Password reset link sent to your email'
             }, status=status.HTTP_200_OK)
         
         return Response({
             'success': False,
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+class PasswordResetConfirmView(APIView):
+     def post(self, request):
+        token = request.data.get("token")
+        new_password = request.data.get("new_password")
+        
+        if not token or not new_password:
+            return Response(
+                {"error": "Token and new password is required.", "success": False},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            reset_token = PasswordResetToken.objects.get(token=token)
+            
+        except PasswordResetToken.DoesNotExist:
+            return Response(
+                {"error": "Invalid token.", "success": False},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Validate the token
+        if not reset_token.is_valid():
+            return Response(
+                {"error": "Token has expired.", "success": False},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Reset the user's password
+        user = reset_token.user
+        user.set_password(new_password)
+        user.save()
+        
+        # Mark the token as used
+        reset_token.used = True
+        reset_token.save()
+        
+        return Response(
+            {"message": "Password has been reset successfully.", "success": True},
+            status=status.HTTP_200_OK
+        )
